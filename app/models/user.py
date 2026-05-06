@@ -3,7 +3,7 @@ User Model - نموذج المستخدم
 """
 import enum
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Enum, Text
+from sqlalchemy import Column, Integer, BigInteger, String, Boolean, DateTime, Enum, Text  # أضف BigInteger
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -21,7 +21,7 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
-    telegram_id = Column(Integer, unique=True, index=True, nullable=False)
+    telegram_id = Column(BigInteger, unique=True, index=True, nullable=False)  # غير إلى BigInteger
     username = Column(String(255), nullable=True)
     first_name = Column(String(255), nullable=True)
     last_name = Column(String(255), nullable=True)
@@ -31,7 +31,7 @@ class User(Base):
     is_premium = Column(Boolean, default=False)
     language = Column(String(10), default="ar")
     referral_code = Column(String(20), unique=True, nullable=True)
-    referred_by = Column(Integer, nullable=True)
+    referred_by = Column(BigInteger, nullable=True)  # يُفضل أيضاً BigInteger
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     last_active = Column(DateTime, nullable=True)
@@ -39,7 +39,6 @@ class User(Base):
 
     # Relationships
     smart_notifications = relationship("SmartNotification", back_populates="user", cascade="all, delete-orphan")
-    # notification_settings تأتي تلقائيًا من backref في UserNotificationSettings
 
     def __repr__(self):
         return f"<User {self.telegram_id} - {self.first_name}>"
