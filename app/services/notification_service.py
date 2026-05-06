@@ -5,7 +5,7 @@ from typing import List, Optional, Dict
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, or_, and_
-from app.models.smart_notifications import (
+from app.models.notification import (
     Notification, UserNotificationSettings, NotificationTemplate,
     NotificationType, NotificationPriority, NotificationStatus
 )
