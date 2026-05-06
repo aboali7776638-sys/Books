@@ -56,11 +56,6 @@ from app.models.challenges import (
     Leaderboard,
 )
 
-# Smart Notifications Models
-from app.models.smart_notifications import (
-    NotificationTemplate,
-    UserNotificationSettings,
-)
 
 # Security Models
 from app.models.security import (
