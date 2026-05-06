@@ -1629,8 +1629,9 @@ async def callback_admin_market_stats(callback: CallbackQuery):
 # ==========================================
 
 @router.error()
-async def error_handler(event, error):
-    """معالج الأخطاء"""
-    from app.utils.logger import get_logger
-    logger = get_logger("handlers")
-    logger.error(f"Error: {error}")
+async def error_handler(event: ErrorEvent):
+    """معالج الأخطاء العام للبوت"""
+    error = event.exception
+    logging.error(f"Unhandled error: {type(error).__name__}: {error}")
+    # يمكنك أيضاً تسجيل الخطأ في قاعدة البيانات أو إرسال رسالة للمالك
+    return True
