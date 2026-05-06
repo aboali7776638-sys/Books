@@ -38,7 +38,6 @@ class Notification(Base):
     error_message = Column(Text, nullable=True)
 
     # Relationships
-    user = relationship("User", backref="notifications")
-
+    user = relationship("User", backref="user_notifications")
     def __repr__(self):
         return f"<Notification {self.id} to {self.user_id}>"
