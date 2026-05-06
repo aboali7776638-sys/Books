@@ -64,7 +64,15 @@ from app.models.security import (
     RateLimit,
     IPBlacklist,
 )
-
+from app.models.notification import (
+    Notification,
+    SmartNotification,
+    UserNotificationSettings,
+    NotificationTemplate,
+    NotificationSchedule,
+    NotificationAnalytics,
+    NotificationPreference,
+)
 __all__ = [
     "User",
     "Book",
