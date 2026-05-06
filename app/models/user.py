@@ -4,6 +4,7 @@ User Model - نموذج المستخدم
 import enum
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, Enum, Text
+from sqlalchemy.orm import relationship
 from app.database import Base
 
 
@@ -35,6 +36,10 @@ class User(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     last_active = Column(DateTime, nullable=True)
     bio = Column(Text, nullable=True)
+
+    # Relationships
+    smart_notifications = relationship("SmartNotification", back_populates="user", cascade="all, delete-orphan")
+    # notification_settings تأتي تلقائيًا من backref في UserNotificationSettings
 
     def __repr__(self):
         return f"<User {self.telegram_id} - {self.first_name}>"
