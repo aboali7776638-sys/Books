@@ -5,10 +5,10 @@ Handlers Features Module - جميع المعالجات الجديدة
 import os
 import io
 import csv
-# ابحث عن السطر الأول وقم بتغييره إلى:
+import logging 
 from typing import Union, Callable, Any, Awaitable, Dict, Optional
 from aiogram import Router, F, Bot
-from aiogram.types import Message, CallbackQuery, Update, TelegramObject
+from aiogram.types import Message, CallbackQuery, Update, TelegramObject, ErrorEvent  # أضف ErrorEvent
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
