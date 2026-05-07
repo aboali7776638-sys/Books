@@ -1064,13 +1064,16 @@ async def callback_confirm_delete_book(callback: CallbackQuery):
         db.close()
 
 
+# ==========================================
+# Admin Category Management - إدارة الأقسام (كود متكامل)
+# ==========================================
+
 @router.callback_query(F.data == "admin_categories")
 async def callback_admin_categories(callback: CallbackQuery):
-    """إدارة الأقسام"""
+    """لوحة إدارة الأقسام الرئيسية"""
     if not is_owner(callback.from_user.id):
         await callback.answer("غير مصرح لك", show_alert=True)
         return
-
     text = "📁 إدارة الأقسام"
     keyboard = get_admin_categories_keyboard()
     await callback.message.edit_text(text, reply_markup=keyboard)
@@ -1078,7 +1081,7 @@ async def callback_admin_categories(callback: CallbackQuery):
 
 @router.callback_query(F.data == "admin_cat_list")
 async def callback_admin_cat_list(callback: CallbackQuery):
-    """عرض الأقسام"""
+    """عرض جميع الأقسام مع أزرار تعديل/حذف لكل قسم"""
     if not is_owner(callback.from_user.id):
         await callback.answer("غير مصرح لك", show_alert=True)
         return
@@ -1090,20 +1093,141 @@ async def callback_admin_cat_list(callback: CallbackQuery):
 
         if not categories:
             await callback.message.edit_text(
-                "لا توجد أقسام حالياً",
-                reply_markup=get_admin_categories_keyboard()
+                "📭 لا توجد أقسام حالياً.",
+                reply_markup=get_back_to_admin_keyboard()
             )
             return
 
-        text = "📁 قائمة الأقسام:\n\n"
+        from aiogram.utils.keyboard import InlineKeyboardBuilder
+        builder = InlineKeyboardBuilder()
         for cat in categories:
-            status = "✅" if cat.is_active else "❌"
-            text += f"{status} {cat.name} (ID: {cat.id})\n"
+            status_icon = "✅" if cat.is_active else "❌"
+            builder.row(
+                InlineKeyboardButton(
+                    text=f"{status_icon} {cat.name} (ID: {cat.id})",
+                    callback_data="ignore"
+                ),
+                InlineKeyboardButton(
+                    text="✏️ تعديل",
+                    callback_data=f"admin_cat_edit_{cat.id}"
+                ),
+                InlineKeyboardButton(
+                    text="🗑️ حذف",
+                    callback_data=f"admin_cat_delete_{cat.id}"
+                )
+            )
+        builder.row(InlineKeyboardButton(text="🔙 رجوع", callback_data="admin_categories"))
+        await callback.message.edit_text(
+            "📁 قائمة الأقسام:\nاختر القسم ثم اضغط تعديل أو حذف.",
+            reply_markup=builder.as_markup()
+        )
+    finally:
+        db.close()
 
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🔙 رجوع", callback_data="admin_categories")]
-        ])
-        await callback.message.edit_text(text, reply_markup=keyboard)
+
+@router.callback_query(F.data == "admin_add_category")
+async def callback_admin_add_category(callback: CallbackQuery, state: FSMContext):
+    """طلب إضافة قسم جديد"""
+    if not is_owner(callback.from_user.id):
+        await callback.answer("غير مصرح لك", show_alert=True)
+        return
+    await callback.message.edit_text("📝 أرسل اسم القسم الجديد (بالعربية أو الإنجليزية):")
+    await state.set_state(AdminStates.waiting_category_name)
+
+
+@router.message(AdminStates.waiting_category_name)
+async def process_new_category(message: Message, state: FSMContext):
+    """حفظ القسم الجديد في قاعدة البيانات"""
+    if not is_owner(message.from_user.id):
+        await message.answer("غير مصرح لك")
+        return
+
+    name = message.text.strip()
+    if not name:
+        await message.answer("⚠️ الاسم لا يمكن أن يكون فارغاً. أرسل الاسم مرة أخرى:")
+        return
+
+    db = SessionLocal()
+    try:
+        category_service = CategoryService(db)
+        existing = category_service.get_by_name(name)
+        if existing:
+            await message.answer(f"❌ القسم '{name}' موجود مسبقاً.")
+            return
+
+        new_cat = category_service.create(name=name, is_active=True)
+        await message.answer(f"✅ تم إضافة القسم '{new_cat.name}' بنجاح.")
+        await message.answer("📁 ارجع إلى إدارة الأقسام من القائمة.", reply_markup=get_admin_categories_keyboard())
+    except Exception as e:
+        await message.answer(f"⚠️ حدث خطأ أثناء الإضافة: {e}")
+    finally:
+        db.close()
+        await state.clear()
+
+
+@router.callback_query(F.data.startswith("admin_cat_edit_"))
+async def callback_admin_cat_edit(callback: CallbackQuery, state: FSMContext):
+    """بدء عملية تعديل قسم (طلب الاسم الجديد)"""
+    if not is_owner(callback.from_user.id):
+        await callback.answer("غير مصرح لك", show_alert=True)
+        return
+
+    category_id = int(callback.data.split("_")[-1])
+    await state.update_data(category_id=category_id)
+    await callback.message.edit_text("✏️ أرسل الاسم الجديد للقسم:")
+    await state.set_state(AdminStates.waiting_category_edit)
+
+
+@router.message(AdminStates.waiting_category_edit)
+async def process_edit_category(message: Message, state: FSMContext):
+    """تحديث القسم بالاسم الجديد"""
+    if not is_owner(message.from_user.id):
+        return
+
+    data = await state.get_data()
+    category_id = data.get("category_id")
+    new_name = message.text.strip()
+
+    if not new_name:
+        await message.answer("⚠️ الاسم لا يمكن أن يكون فارغاً.")
+        return
+
+    db = SessionLocal()
+    try:
+        category_service = CategoryService(db)
+        updated_cat = category_service.update(category_id, name=new_name)
+        if updated_cat:
+            await message.answer(f"✅ تم تحديث القسم إلى '{updated_cat.name}'.")
+        else:
+            await message.answer("❌ القسم غير موجود.")
+        await message.answer("📁 ارجع إلى إدارة الأقسام.", reply_markup=get_admin_categories_keyboard())
+    except Exception as e:
+        await message.answer(f"⚠️ حدث خطأ أثناء التحديث: {e}")
+    finally:
+        db.close()
+        await state.clear()
+
+
+@router.callback_query(F.data.startswith("admin_cat_delete_"))
+async def callback_admin_cat_delete(callback: CallbackQuery):
+    """حذف قسم نهائياً"""
+    if not is_owner(callback.from_user.id):
+        await callback.answer("غير مصرح لك", show_alert=True)
+        return
+
+    category_id = int(callback.data.split("_")[-1])
+    db = SessionLocal()
+    try:
+        category_service = CategoryService(db)
+        success = category_service.delete(category_id)
+        if success:
+            await callback.answer("🗑️ تم حذف القسم بنجاح", show_alert=True)
+            # تحديث القائمة
+            await callback_admin_cat_list(callback)
+        else:
+            await callback.answer("❌ لم يتم الحذف (ربما القسم غير موجود)", show_alert=True)
+    except Exception as e:
+        await callback.answer(f"⚠️ خطأ أثناء الحذف: {e}", show_alert=True)
     finally:
         db.close()
 
