@@ -8,7 +8,7 @@ import csv
 import logging 
 from typing import Union, Callable, Any, Awaitable, Dict, Optional
 from aiogram import Router, F, Bot
-from aiogram.types import Message, CallbackQuery, Update, TelegramObject, ErrorEvent  # أضف ErrorEvent
+from aiogram.types import Message, CallbackQuery, Update, TelegramObject, ErrorEvent
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -442,6 +442,7 @@ async def my_profile(message: Message):
         user_points = points_service.get_user_points(user.id)
         points = user_points.current_balance if user_points else 0
 
+        # ملاحظة: قد تحتاج إلى تعديل format_user_profile في helpers.py لاستقبال معاملين
         profile_text = format_user_profile(user, points)
         keyboard = get_user_profile_keyboard()
 
@@ -627,7 +628,7 @@ async def go_back(message: Message):
 
 
 # ==========================================
-# Callback Handlers - معالجات الأازرار Callback
+# Callback Handlers - معالجات الأزرار Callback
 # ==========================================
 
 @router.callback_query(F.data == "main_menu")
@@ -725,13 +726,13 @@ async def callback_favorite(callback: CallbackQuery):
             # إزالة من المفضلة
             db.delete(fav)
             db.commit()
-            await callback.answer("❌Removed from favorites")
+            await callback.answer("❌ Removed from favorites")
         else:
             # إضافة للمفضلة
             new_fav = Favorite(user_id=user.id, book_id=book_id)
             db.add(new_fav)
             db.commit()
-            await callback.answer("✅Added to favorites")
+            await callback.answer("✅ Added to favorites")
 
         # تحديث عرض الكتاب
         book_service = BookService(db)
@@ -1108,6 +1109,49 @@ async def callback_admin_cat_list(callback: CallbackQuery):
         db.close()
 
 
+# ========== إضافة معالج إضافة قسم جديد ==========
+@router.callback_query(F.data == "admin_add_category")
+async def callback_admin_add_category(callback: CallbackQuery, state: FSMContext):
+    """طلب إضافة قسم جديد"""
+    if not is_owner(callback.from_user.id):
+        await callback.answer("غير مصرح لك", show_alert=True)
+        return
+    await callback.message.edit_text("📝 أرسل اسم القسم الجديد (بالعربية أو الإنجليزية):")
+    await state.set_state(AdminStates.waiting_category_name)
+
+
+@router.message(AdminStates.waiting_category_name)
+async def process_new_category(message: Message, state: FSMContext):
+    """حفظ القسم الجديد"""
+    if not is_owner(message.from_user.id):
+        await message.answer("غير مصرح لك")
+        return
+    name = message.text.strip()
+    if not name:
+        await message.answer("⚠️ الاسم لا يمكن أن يكون فارغاً. أرسل الاسم مرة أخرى:")
+        return
+
+    db = SessionLocal()
+    try:
+        category_service = CategoryService(db)
+        # التحقق من عدم وجود قسم بنفس الاسم
+        existing = category_service.get_by_name(name)
+        if existing:
+            await message.answer(f"❌ القسم '{name}' موجود مسبقاً.")
+            return
+        # إنشاء القسم
+        new_cat = category_service.create(name=name, is_active=True)
+        await message.answer(f"✅ تم إضافة القسم '{new_cat.name}' بنجاح.")
+        # عرض لوحة الأقسام مرة أخرى (طريقة مبسطة)
+        await message.answer("📁 ارجع إلى إدارة الأقسام من القائمة.", reply_markup=get_admin_categories_keyboard())
+    except Exception as e:
+        await message.answer(f"⚠️ حدث خطأ: {e}")
+    finally:
+        db.close()
+        await state.clear()
+
+
+# ==========================================
 @router.callback_query(F.data == "admin_authors")
 async def callback_admin_authors(callback: CallbackQuery):
     """إدارة المؤلفين"""
@@ -1383,66 +1427,57 @@ async def handle_ai_question(message: Message, state: FSMContext):
 
 
 # ==========================================
-# New Admin Features Handlers - معالجات الميزات الجديدة للإدارة
+# الأقسام التالية (admin_market, admin_challenges, admin_security, admin_referral, admin_leaderboard, admin_market_stats)
+# تم تعليقها مؤقتاً لأنها تستدعي دوال أو خدمات غير موجودة (get_admin_market_keyboard, ReferralService, ChallengeService, MarketService, ...)
+# يمكنك إلغاء التعليق عند إضافة هذه الدوال والخدمات.
 # ==========================================
+
+"""
+# New Admin Features Handlers - معالجات الميزات الجديدة للإدارة (معلقة مؤقتاً)
 
 @router.callback_query(F.data == "admin_market")
 async def callback_admin_market(callback: CallbackQuery):
-    """إدارة السوق"""
     if not is_owner(callback.from_user.id):
         await callback.answer("غير مصرح لك", show_alert=True)
         return
-
     text = "🏪 إدارة السوق"
     keyboard = get_admin_market_keyboard()
     await callback.message.edit_text(text, reply_markup=keyboard)
 
-
 @router.callback_query(F.data == "admin_challenges")
 async def callback_admin_challenges(callback: CallbackQuery):
-    """إدارة التحديات"""
     if not is_owner(callback.from_user.id):
         await callback.answer("غير مصرح لك", show_alert=True)
         return
-
     text = "🏆 إدارة التحديات"
     keyboard = get_admin_challenges_keyboard()
     await callback.message.edit_text(text, reply_markup=keyboard)
 
-
 @router.callback_query(F.data == "admin_security")
 async def callback_admin_security(callback: CallbackQuery):
-    """إدارة الأمان"""
     if not is_owner(callback.from_user.id):
         await callback.answer("غير مصرح لك", show_alert=True)
         return
-
     text = "🔒 إدارة الأمان والتدقيق"
     keyboard = get_admin_security_keyboard()
     await callback.message.edit_text(text, reply_markup=keyboard)
 
-
 @router.callback_query(F.data == "admin_audit_log")
 async def callback_admin_audit_log(callback: CallbackQuery):
-    """سجل التدقيق"""
     if not is_owner(callback.from_user.id):
         await callback.answer("غير مصرح لك", show_alert=True)
         return
-
     db = SessionLocal()
     try:
         service = SecurityService(db)
         logs = service.get_recent_logs(limit=20)
-
         text = "📋 سجل التدقيق:\n\n"
         for log in logs:
             text += f"📌 {log.get('action', '')}\n"
             text += f"👤 المستخدم: {log.get('user_id', 'N/A')}\n"
             text += f"📅 {log.get('timestamp', '')}\n\n"
-
         if not logs:
             text = "📋 لا توجد سجلات تدقيق"
-
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🔙 رجوع", callback_data="admin_security")]
         ])
@@ -1450,19 +1485,15 @@ async def callback_admin_audit_log(callback: CallbackQuery):
     finally:
         db.close()
 
-
 @router.callback_query(F.data == "admin_security_stats")
 async def callback_admin_security_stats(callback: CallbackQuery):
-    """إحصائيات الأمان"""
     if not is_owner(callback.from_user.id):
         await callback.answer("غير مصرح لك", show_alert=True)
         return
-
     db = SessionLocal()
     try:
         service = SecurityService(db)
         stats = service.get_security_stats()
-
         text = f"""
 🔒 إحصائيات الأمان:
 
@@ -1471,7 +1502,6 @@ async def callback_admin_security_stats(callback: CallbackQuery):
 📊 طلبات API: {stats.get('api_requests', 0)}
 ⚠️ محاولات الوصول الفاشلة: {stats.get('failed_attempts', 0)}
         """
-
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🔙 رجوع", callback_data="admin_security")]
         ])
@@ -1479,27 +1509,21 @@ async def callback_admin_security_stats(callback: CallbackQuery):
     finally:
         db.close()
 
-
 @router.callback_query(F.data == "admin_blacklist")
 async def callback_admin_blacklist(callback: CallbackQuery):
-    """القائمة السوداء"""
     if not is_owner(callback.from_user.id):
         await callback.answer("غير مصرح لك", show_alert=True)
         return
-
     db = SessionLocal()
     try:
         service = SecurityService(db)
         blocked = service.get_blocked_ips(limit=20)
-
         text = "🚫 القائمة السوداء:\n\n"
         for ip in blocked:
             text += f"🔒 {ip.get('ip_address', '')}\n"
             text += f"   السبب: {ip.get('reason', 'غير محدد')}\n\n"
-
         if not blocked:
             text = "🚫 لا توجد عناوين محظورة"
-
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="➕ إضافة عنوان", callback_data="admin_add_blacklist")],
             [InlineKeyboardButton(text="🔙 رجوع", callback_data="admin_security")]
@@ -1508,19 +1532,15 @@ async def callback_admin_blacklist(callback: CallbackQuery):
     finally:
         db.close()
 
-
 @router.callback_query(F.data == "admin_referral")
 async def callback_admin_referral(callback: CallbackQuery):
-    """إدارة الإحالات"""
     if not is_owner(callback.from_user.id):
         await callback.answer("غير مصرح لك", show_alert=True)
         return
-
     db = SessionLocal()
     try:
         service = ReferralService(db)
-        stats = service.get_referral_stats(0)  # Platform-wide
-
+        stats = service.get_referral_stats(0)
         text = f"""
 🎯 إحصائيات الإحالة للمنصة:
 
@@ -1528,7 +1548,6 @@ async def callback_admin_referral(callback: CallbackQuery):
 💰 إجمالي الأرباح الموزعة: {stats.get('total_earnings', 0)} نقطة
 🎖️ الشارات الممنوحة: {stats.get('badges_count', 0)}
         """
-
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="📊 لوحة أفضل المحيلين", callback_data="admin_referral_leaderboard")],
             [InlineKeyboardButton(text="⚙️ إعدادات الإحالة", callback_data="admin_referral_settings")],
@@ -1538,14 +1557,11 @@ async def callback_admin_referral(callback: CallbackQuery):
     finally:
         db.close()
 
-
 @router.callback_query(F.data == "admin_notifications")
 async def callback_admin_notifications(callback: CallbackQuery):
-    """إدارة الإشعارات"""
     if not is_owner(callback.from_user.id):
         await callback.answer("غير مصرح لك", show_alert=True)
         return
-
     text = """
 🔔 إدارة الإشعارات:
 
@@ -1553,7 +1569,6 @@ async def callback_admin_notifications(callback: CallbackQuery):
 📊 عرض إحصائيات الإشعارات
 ⚙️ إدارة قوالب الإشعارات
 """
-
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📨 إرسال إشعار", callback_data="admin_send_notification")],
         [InlineKeyboardButton(text="📊 إحصائيات الإشعارات", callback_data="admin_notification_stats")],
@@ -1561,32 +1576,24 @@ async def callback_admin_notifications(callback: CallbackQuery):
     ])
     await callback.message.edit_text(text, reply_markup=keyboard)
 
-
 @router.callback_query(F.data == "admin_leaderboard")
 async def callback_admin_leaderboard(callback: CallbackQuery):
-    """لوحة المتصدرين"""
     if not is_owner(callback.from_user.id):
         await callback.answer("غير مصرح لك", show_alert=True)
         return
-
     db = SessionLocal()
     try:
         challenge_service = ChallengeService(db)
         points_service = PointsService(db)
-
         text = "📊 لوحات المتصدرين:\n\n"
-
-        # Points leaderboard
         text += "💰 نقاط المستخدمين:\n"
         top_points = points_service.get_leaderboard(limit=5)
         for i, up in enumerate(top_points, 1):
             text += f"{i}. نقاط: {up.current_balance}\n"
-
         text += "\n🏆 التحديات:\n"
         top_challenges = challenge_service.get_leaderboard("weekly", limit=5)
         for i, entry in enumerate(top_challenges, 1):
             text += f"{i}. {entry.get('user_name', 'مستخدم')}: {entry.get('score', 0)}\n"
-
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🔙 رجوع", callback_data="admin_menu")]
         ])
@@ -1594,19 +1601,15 @@ async def callback_admin_leaderboard(callback: CallbackQuery):
     finally:
         db.close()
 
-
 @router.callback_query(F.data == "admin_market_stats")
 async def callback_admin_market_stats(callback: CallbackQuery):
-    """إحصائيات السوق"""
     if not is_owner(callback.from_user.id):
         await callback.answer("غير مصرح لك", show_alert=True)
         return
-
     db = SessionLocal()
     try:
         service = MarketService(db)
         stats = service.get_platform_earnings()
-
         text = f"""
 🏪 إحصائيات السوق:
 
@@ -1615,14 +1618,13 @@ async def callback_admin_market_stats(callback: CallbackQuery):
 🏆 المبيعات: {stats.get('sales_count', 0)}
 🔨 المزادات: {stats.get('auctions_count', 0)}
         """
-
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🔙 رجوع", callback_data="admin_market")]
         ])
         await callback.message.edit_text(text, reply_markup=keyboard)
     finally:
         db.close()
-
+"""
 
 # ==========================================
 # Error Handler
