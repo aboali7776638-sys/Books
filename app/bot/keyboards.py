@@ -856,7 +856,7 @@ def get_admin_security_keyboard() -> InlineKeyboardMarkup:
 
     builder.adjust(2)
     return builder.as_markup()
-    def get_admin_books_keyboard() -> InlineKeyboardMarkup:
+def get_admin_books_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.add(InlineKeyboardButton(text="📋 قائمة الكتب", callback_data="admin_book_list"))
     builder.add(InlineKeyboardButton(text="⏳ قيد المراجعة", callback_data="admin_pending_books"))
