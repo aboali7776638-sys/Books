@@ -27,6 +27,10 @@ from app.services.channel_service import ChannelService
 from app.services.points_service import PointsService
 from app.services.search_service import SearchService
 from app.services.ai_service import ai_service
+from app.services.security_service import SecurityService
+from app.services.referral_service import ReferralService
+from app.services.challenge_service import ChallengeService
+from app.services.market_service import MarketService
 from app.models.book import BookStatus
 from app.models.user import UserStatus
 from app.models.points import TransactionType
@@ -46,7 +50,10 @@ from app.bot.keyboards import (
     get_admin_authors_keyboard,
     get_admin_channels_keyboard,
     get_admin_users_keyboard,
-    get_admin_book_actions_keyboard,
+    get_admin_book_keyboard,
+    get_admin_market_keyboard,
+    get_admin_challenges_keyboard,
+    get_admin_security_keyboard,
     get_confirm_keyboard,
     get_back_to_admin_keyboard,
     get_search_type_keyboard,
