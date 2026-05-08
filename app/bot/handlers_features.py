@@ -47,6 +47,10 @@ from app.bot.keyboards import (
     get_admin_channels_keyboard,
     get_admin_users_keyboard,
     get_admin_book_actions_keyboard,
+    get_admin_books_keyboard,
+    get_admin_market_keyboard,
+    get_admin_challenges_keyboard,
+    get_admin_security_keyboard,
     get_confirm_keyboard,
     get_back_to_admin_keyboard,
     get_search_type_keyboard,
@@ -1312,7 +1316,37 @@ async def callback_admin_cat_delete(callback: CallbackQuery):
     finally:
         db.close()
 
-
+@router.message(Command("exportcsv"))
+async def cmd_export_csv(message: Message):
+    if not is_owner(message.from_user.id):
+        await message.answer("غير مصرح لك بهذا الأمر.")
+        return
+    db = SessionLocal()
+    try:
+        book_service = BookService(db)
+        books = book_service.get_all_books(status=BookStatus.ACTIVE)
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(['ID', 'العنوان', 'المؤلف', 'القسم', 'التحميلات', 'التقييم'])
+        for book in books:
+            writer.writerow([
+                book.id,
+                book.title,
+                book.author.name if book.author else '',
+                book.category.name if book.category else '',
+                book.download_count,
+                book.average_rating
+            ])
+        output.seek(0)
+        bytes_io = io.BytesIO(output.getvalue().encode('utf-8'))
+        from aiogram.types import BufferedInputFile
+        file = BufferedInputFile(bytes_io.getvalue(), filename='books_export.csv')
+        await message.answer_document(document=file, caption="📤 تم تصدير البيانات")
+    except Exception as e:
+        await message.answer(f"⚠️ خطأ أثناء التصدير: {e}")
+    finally:
+        db.close()
+        
 @router.callback_query(F.data == "admin_menu")
 async def callback_admin_menu(callback: CallbackQuery):
     """العودة للوحة تحكم المالك"""
