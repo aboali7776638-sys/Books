@@ -856,3 +856,13 @@ def get_admin_security_keyboard() -> InlineKeyboardMarkup:
 
     builder.adjust(2)
     return builder.as_markup()
+    def get_admin_books_keyboard() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.add(InlineKeyboardButton(text="📋 قائمة الكتب", callback_data="admin_book_list"))
+    builder.add(InlineKeyboardButton(text="⏳ قيد المراجعة", callback_data="admin_pending_books"))
+    builder.add(InlineKeyboardButton(text="📤 رفع كتاب", callback_data="admin_upload_book"))
+    builder.add(InlineKeyboardButton(text="🗑️ حذف كتاب", callback_data="admin_delete_book"))
+    builder.add(InlineKeyboardButton(text="📥 تصدير CSV", callback_data="admin_export_csv"))
+    builder.add(InlineKeyboardButton(text="🔙 رجوع", callback_data="admin_menu"))
+    builder.adjust(2)
+    return builder.as_markup()
