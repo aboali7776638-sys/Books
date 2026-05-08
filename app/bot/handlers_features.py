@@ -1069,7 +1069,81 @@ async def callback_confirm_delete_book(callback: CallbackQuery):
         )
     finally:
         db.close()
+# ==========================================
+# رفع كتاب جديد (Admin Upload Book)
+# ==========================================
 
+@router.callback_query(F.data == "admin_upload_book")
+async def callback_admin_upload_book(callback: CallbackQuery, state: FSMContext):
+    if not is_owner(callback.from_user.id):
+        await callback.answer("غير مصرح لك", show_alert=True)
+        return
+    await callback.message.edit_text("📖 أرسل عنوان الكتاب الجديد:")
+    await state.set_state(AdminStates.waiting_book_title)
+
+@router.message(AdminStates.waiting_book_title)
+async def process_book_title(message: Message, state: FSMContext):
+    if not is_owner(message.from_user.id):
+        return
+    await state.update_data(title=message.text.strip())
+    await message.answer("✍️ أرسل اسم المؤلف (يمكنك كتابة اسم جديد أو اختيار من القائمة لاحقاً):")
+    await state.set_state(AdminStates.waiting_book_author)
+
+@router.message(AdminStates.waiting_book_author)
+async def process_book_author(message: Message, state: FSMContext):
+    if not is_owner(message.from_user.id):
+        return
+    await state.update_data(author=message.text.strip())
+    await message.answer("📝 أرسل وصف الكتاب (اختياري، يمكنك كتابة /skip للتخطي):")
+    await state.set_state(AdminStates.waiting_book_description)
+
+@router.message(AdminStates.waiting_book_description)
+async def process_book_description(message: Message, state: FSMContext):
+    if not is_owner(message.from_user.id):
+        return
+    desc = message.text.strip()
+    if desc == "/skip":
+        desc = None
+    await state.update_data(description=desc)
+    await message.answer("📂 أرسل ملف الكتاب (PDF أو EPUB):")
+    await state.set_state(AdminStates.waiting_book_file)
+
+@router.message(AdminStates.waiting_book_file, F.document)
+async def process_book_file(message: Message, state: FSMContext, bot: Bot):
+    if not is_owner(message.from_user.id):
+        return
+    data = await state.get_data()
+    title = data.get("title")
+    author_name = data.get("author")
+    description = data.get("description")
+    doc = message.document
+    # تأكد من وجود مجلد uploads
+    os.makedirs("uploads", exist_ok=True)
+    file_path = f"uploads/{doc.file_id}_{doc.file_name}"
+    await bot.download(doc, destination=file_path)
+    db = SessionLocal()
+    try:
+        # التعامل مع المؤلف
+        author_service = AuthorService(db)
+        author = author_service.get_by_name(author_name)
+        if not author:
+            author = author_service.create(name=author_name)
+        book_service = BookService(db)
+        book = book_service.create(
+            title=title,
+            author_id=author.id,
+            description=description,
+            file_path=file_path,
+            status=BookStatus.PENDING
+        )
+        await message.answer(f"✅ تم رفع الكتاب '{book.title}' بنجاح، وهو ينتظر المراجعة.")
+    except Exception as e:
+        await message.answer(f"⚠️ حدث خطأ أثناء رفع الكتاب: {e}")
+    finally:
+        db.close()
+        await state.clear()
+    # العودة إلى لوحة إدارة الكتب
+    await callback_admin_books(message)
 
 # ==========================================
 # Admin Category Management - إدارة الأقسام (كود متكامل)
