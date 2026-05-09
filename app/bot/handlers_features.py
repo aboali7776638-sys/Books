@@ -1532,12 +1532,23 @@ async def process_add_channel_id(message: Message, state: FSMContext):
     await state.set_state(AdminStates.waiting_channel_link)
 
 @router.message(AdminStates.waiting_channel_link)
-async def process_add_channel_link(message: Message, state: FSMContext):
+async def process_add_channel_link(message: Message, state: FSMContext, bot: Bot):
     if not is_owner(message.from_user.id):
         return
     link = message.text.strip()
     data = await state.get_data()
     channel_id = data.get("channel_id")
+
+    # التحقق من صحة القناة
+    try:
+        chat = await bot.get_chat(channel_id)
+        if chat.type not in ['channel', 'supergroup']:
+            await message.answer("⚠️ المعرف لا يشير إلى قناة صالحة (يجب أن تكون قناة أو مجموعة سوبر).")
+            return
+    except Exception as e:
+        await message.answer(f"⚠️ لا يمكن الوصول إلى القناة. تأكد من أن البوت مشرف في القناة أو أن المعرف صحيح.\nالخطأ: {e}")
+        return
+
     db = SessionLocal()
     try:
         channel_service = ChannelService(db)
