@@ -7,9 +7,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.models.admin import AdminUser, AdminLog, AdminRole
 from app.models.user import User, UserStatus
-from app.models.book import Book, BookStatus
+from app.models.book import Book, BookStatus, BookCategory
 from app.models.points import UserPoints
-from app.models.category import BookCategory
 from app.models.author import Author
 
 
