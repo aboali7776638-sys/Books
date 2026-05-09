@@ -121,13 +121,13 @@ class AuthorService:
             func.count(Book.id).desc()
         ).limit(limit).all()
         
-    def get_authors_by_category(self, category_id: int) -> List[Author]:
-    """جلب المؤلفين الذين لديهم كتب في قسم معين"""
-    from app.models.book import Book
-    authors = self.db.query(Author).join(
-        Book, Author.id == Book.author_id
-    ).filter(
-        Book.category_id == category_id,
-        Book.status == 'active'
-    ).distinct().all()
-    return authors
+    def get_authors_by_category(self, category_id: int):
+        """جلب المؤلفين الذين لديهم كتب في قسم معين"""
+        from app.models.book import Book
+        authors = self.db.query(Author).join(
+            Book, Author.id == Book.author_id
+        ).filter(
+            Book.category_id == category_id,
+            Book.status == 'active'
+        ).distinct().all()
+        return authors
