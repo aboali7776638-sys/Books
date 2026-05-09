@@ -3,6 +3,7 @@ Channel Service - خدمة القنوات
 """
 from aiogram import Bot
 from typing import List, Optional
+from typing import List, Tuple
 from sqlalchemy.orm import Session
 from app.models.channel_setting import ForceJoinChannel, ChannelSetting
 
