@@ -43,20 +43,27 @@ def get_back_keyboard() -> ReplyKeyboardMarkup:
 
 def get_category_keyboard(categories: List[BookCategory] = None) -> InlineKeyboardMarkup:
     """أزرار الأقسام للتصفح - ديناميكية من قاعدة البيانات"""
+    from app.database import SessionLocal
+    from app.services.category_service import CategoryService
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    
     builder = InlineKeyboardBuilder()
-
+    
+    # إذا لم يتم تمرير الأقسام، نجلبها من قاعدة البيانات
     if categories is None:
         db = SessionLocal()
         try:
             service = CategoryService(db)
             categories = service.list_all(active_only=True)
+            print(f"DEBUG: Found {len(categories)} categories")  # للتصحيح
         finally:
             db.close()
-
+    
     if not categories:
+        # إذا لم توجد أقسام، نعرض زر لإضافتها (للمالك فقط)
         builder.add(InlineKeyboardButton(
-            text="📚 إضافة أقسام جديدة",
-            callback_data="admin_cat_add"
+            text="📚 لا توجد أقسام، أضف قسم جديد",
+            callback_data="admin_categories"
         ))
     else:
         for cat in categories:
@@ -66,8 +73,7 @@ def get_category_keyboard(categories: List[BookCategory] = None) -> InlineKeyboa
                 text=f"{icon} {name}",
                 callback_data=f"cat_{cat.id}"
             ))
-
-    # إضافة زر الأقسام للإدارة للمالك
+    
     builder.adjust(2)
     return builder.as_markup()
 
