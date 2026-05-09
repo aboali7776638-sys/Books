@@ -217,7 +217,7 @@ class RecommendationService:
         if use_ai and book.description:
             try:
                 book_text = f"{book.title} {book.description}"
-                similar_ai = self.get_ai_similar_books(book_text, limit)
+                similar_ai = await self.get_ai_similar_books(book_text, limit)
                 similar.extend(similar_ai)
             except Exception:
                 pass
