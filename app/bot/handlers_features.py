@@ -672,7 +672,89 @@ async def callback_category(callback: CallbackQuery):
     finally:
         db.close()
 
+@router.callback_query(F.data.startswith("cat_"))
+async def callback_category(callback: CallbackQuery):
+    """عرض مؤلفي القسم بدلاً من الكتب مباشرة"""
+    category_id = int(callback.data.split("_")[1])
+    
+    db = SessionLocal()
+    try:
+        category_service = CategoryService(db)
+        author_service = AuthorService(db)
+        
+        category = category_service.get_by_id(category_id)
+        if not category:
+            await callback.answer("القسم غير موجود", show_alert=True)
+            return
+        
+        # جلب المؤلفين الذين لديهم كتب في هذا القسم
+        authors = author_service.get_authors_by_category(category_id)
+        
+        if not authors:
+            await callback.message.edit_text(
+                f"📁 {category.name}\n\nلا يوجد مؤلفون في هذا القسم حالياً.",
+                reply_markup=get_back_keyboard()
+            )
+            return
+        
+        # بناء لوحة مفاتيح للمؤلفين
+        from aiogram.utils.keyboard import InlineKeyboardBuilder
+        builder = InlineKeyboardBuilder()
+        for author in authors:
+            builder.add(InlineKeyboardButton(
+                text=f"✍️ {author.name}",
+                callback_data=f"author_cat_{category_id}_{author.id}"
+            ))
+        builder.adjust(2)
+        builder.row(InlineKeyboardButton(text="🔙 رجوع", callback_data="main_menu"))
+        
+        await callback.message.edit_text(
+            f"📁 {category.name}\n\nاختر المؤلف لعرض كتبه:",
+            reply_markup=builder.as_markup()
+        )
+    finally:
+        db.close()
 
+@router.callback_query(F.data.startswith("author_cat_"))
+async def callback_author_books(callback: CallbackQuery):
+    """عرض كتب المؤلف في قسم معين"""
+    parts = callback.data.split("_")
+    category_id = int(parts[2])
+    author_id = int(parts[3])
+    
+    db = SessionLocal()
+    try:
+        book_service = BookService(db)
+        category_service = CategoryService(db)
+        author_service = AuthorService(db)
+        
+        category = category_service.get_by_id(category_id)
+        author = author_service.get_by_id(author_id)
+        books = book_service.get_books_by_category_and_author(category_id, author_id)
+        
+        if not books:
+            await callback.message.edit_text(
+                f"📚 لا توجد كتب للمؤلف {author.name} في قسم {category.name}",
+                reply_markup=get_back_keyboard()
+            )
+            return
+        
+        from aiogram.utils.keyboard import InlineKeyboardBuilder
+        builder = InlineKeyboardBuilder()
+        for book in books:
+            builder.add(InlineKeyboardButton(
+                text=f"📖 {book.title[:40]}",
+                callback_data=f"book_{book.id}"
+            ))
+        builder.adjust(1)
+        builder.row(InlineKeyboardButton(text="🔙 رجوع", callback_data=f"cat_{category_id}"))
+        
+        await callback.message.edit_text(
+            f"📚 قسم {category.name} | ✍️ {author.name}\n\nاختر كتاباً:",
+            reply_markup=builder.as_markup()
+        )
+    finally:
+        db.close()
 @router.callback_query(F.data.startswith("book_"))
 async def callback_book(callback: CallbackQuery):
     """عرض تفاصيل الكتاب"""
