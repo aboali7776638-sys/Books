@@ -89,24 +89,24 @@ class ChannelService:
         except Exception:
             return False
 
-    async def check_all_subscriptions(self, bot: Bot, user_id: int) -> Tuple[bool, List[ChannelSetting]]:
-        """التحقق من اشتراك المستخدم في جميع القنوات المطلوبة"""
-        channels = self.get_all_channels()
-        if not channels:
-            return True, []
+    async def check_all_subscriptions(self, bot: Bot, user_id: int) -> Tuple[bool, List[ForceJoinChannel]]:
+    """التحقق من اشتراك المستخدم في جميع القنوات المطلوبة"""
+    channels = self.get_all_channels()
+    if not channels:
+        return True, []
 
-        not_subscribed = []
-        for ch in channels:
-            if not ch.is_required:
-                continue
-            try:
-                member = await bot.get_chat_member(chat_id=ch.channel_id, user_id=user_id)
-                if member.status in ['left', 'kicked']:
-                    not_subscribed.append(ch)
-            except Exception:
-                # إذا حدث خطأ (قناة غير موجودة أو البوت ليس مشرفاً)، نعتبره غير مشترك
+    not_subscribed = []
+    for ch in channels:
+        if not ch.is_required:
+            continue
+        try:
+            member = await bot.get_chat_member(chat_id=ch.channel_id, user_id=user_id)
+            if member.status in ['left', 'kicked']:
                 not_subscribed.append(ch)
-        return len(not_subscribed) == 0, not_subscribed
+        except Exception:
+            # إذا حدث خطأ (قناة غير موجودة أو البوت ليس مشرفاً)، نعتبره غير مشترك
+            not_subscribed.append(ch)
+    return len(not_subscribed) == 0, not_subscribed
     # إعدادات النشر
     def setup_auto_post(
         self,
