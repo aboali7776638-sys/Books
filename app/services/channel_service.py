@@ -1,6 +1,7 @@
 """
 Channel Service - خدمة القنوات
 """
+from aiogram import Bot
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from app.models.channel_setting import ForceJoinChannel, ChannelSetting
@@ -87,19 +88,24 @@ class ChannelService:
         except Exception:
             return False
 
-    async def check_all_subscriptions(self, bot, user_id: int) -> tuple[bool, List[ForceJoinChannel]]:
-        """فحص جميع الاشتراكات الإلزامية"""
-        required_channels = self.db.query(ForceJoinChannel).filter(
-            ForceJoinChannel.is_required == True
-        ).all()
+    async def check_all_subscriptions(self, bot: Bot, user_id: int) -> Tuple[bool, List[ChannelSetting]]:
+        """التحقق من اشتراك المستخدم في جميع القنوات المطلوبة"""
+        channels = self.get_all_channels()
+        if not channels:
+            return True, []
 
         not_subscribed = []
-        for channel in required_channels:
-            if not await self.check_subscription(bot, user_id, channel.channel_id):
-                not_subscribed.append(channel)
-
+        for ch in channels:
+            if not ch.is_required:
+                continue
+            try:
+                member = await bot.get_chat_member(chat_id=ch.channel_id, user_id=user_id)
+                if member.status in ['left', 'kicked']:
+                    not_subscribed.append(ch)
+            except Exception:
+                # إذا حدث خطأ (قناة غير موجودة أو البوت ليس مشرفاً)، نعتبره غير مشترك
+                not_subscribed.append(ch)
         return len(not_subscribed) == 0, not_subscribed
-
     # إعدادات النشر
     def setup_auto_post(
         self,
