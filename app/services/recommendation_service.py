@@ -182,7 +182,7 @@ class RecommendationService:
 
         return unique_recommendations[:limit]
 
-    def get_similar_books(
+    async def get_similar_books(
         self,
         book_id: int,
         limit: int = 5,
