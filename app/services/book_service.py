@@ -200,12 +200,15 @@ class BookService:
         self.db.refresh(book)
         return book
 
-    def get_all_books(self, status: Optional[BookStatus] = None) -> List[Book]:
-        """الحصول على جميع الكتب"""
+    def get_all_books(self, status: BookStatus = None, limit: int = None, offset: int = 0):
         query = self.db.query(Book)
-        if status:
+        if status is not None:
             query = query.filter(Book.status == status)
-        return query.order_by(desc(Book.created_at)).all()
+        if limit:
+            query = query.limit(limit)
+        if offset:
+            query = query.offset(offset)
+        return query.all()
 
     def count_books(self, status: Optional[BookStatus] = None) -> int:
         """عدد الكتب"""
