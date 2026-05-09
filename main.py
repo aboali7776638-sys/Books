@@ -15,6 +15,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from config.settings import get_settings
 from app.database import init_db, engine, Base
 from app.bot.handlers_router import handlers_router
+from app.bot.handlers_features import ForceJoinMiddleware
 
 # Import API routers
 from app.api import (
@@ -45,8 +46,7 @@ async def start_bot():
 
     bot = Bot(token=settings.telegram_bot_token)
     dp = Dispatcher(storage=MemoryStorage())
-
-    # تسجيل الراوترات
+    dp.update.middleware(ForceJoinMiddleware())
     dp.include_router(handlers_router)
 
     logger.info("Starting Telegram Bot...")
