@@ -6,14 +6,12 @@ from sqlalchemy import Column, Integer, String, Boolean, DateTime
 from app.database import Base
 
 
-class ForceJoinChannel(Base):
-    """نموذج قنوات الاشتراك الإجباري"""
-    __tablename__ = "force_join_channels"
-
-    id = Column(Integer, primary_key=True, index=True)
-    channel_id = Column(String(100), unique=True, nullable=False, index=True)
-    channel_name = Column(String(255), nullable=True)
-    channel_link = Column(String(500), nullable=True)
+class ChannelSetting(Base):
+    __tablename__ = "channel_settings"
+    id = Column(Integer, primary_key=True)
+    channel_id = Column(String, unique=True, nullable=False)
+    channel_link = Column(String, nullable=False)
+    channel_name = Column(String, nullable=True)
     is_required = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
