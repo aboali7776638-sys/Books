@@ -1233,7 +1233,7 @@ async def process_book_file(message: Message, state: FSMContext, bot: Bot):
         db.close()
         await state.clear()
     # العودة إلى لوحة إدارة الكتب
-    await callback_admin_books(message)
+    await message.answer("📚 تم تسجيل الكتاب بنجاح.", reply_markup=get_admin_books_keyboard())
 
 # ==========================================
 # Admin Category Management - إدارة الأقسام (كود متكامل)
