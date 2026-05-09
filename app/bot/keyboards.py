@@ -290,15 +290,8 @@ def get_admin_keyboard() -> InlineKeyboardMarkup:
 def get_admin_categories_keyboard() -> InlineKeyboardMarkup:
     """أزرار إدارة الأقسام"""
     builder = InlineKeyboardBuilder()
-
-    builder.add(InlineKeyboardButton(
-        text="📋 عرض جميع الأقسام",
-        callback_data="admin_cat_list"
-    ))
-    builder.add(InlineKeyboardButton(
-        text="➕ إضافة قسم جديد",
-        callback_data="admin_cat_add"
-    ))
+    builder.add(InlineKeyboardButton(text="📋 عرض جميع الأقسام", callback_data="admin_cat_list"))
+    builder.add(InlineKeyboardButton(text="➕ إضافة قسم جديد", callback_data="admin_add_category"))  # تغيير من admin_cat_add
     builder.add(InlineKeyboardButton(
         text="✏️ تعديل قسم",
         callback_data="admin_cat_edit"
@@ -319,15 +312,9 @@ def get_admin_categories_keyboard() -> InlineKeyboardMarkup:
 def get_admin_authors_keyboard() -> InlineKeyboardMarkup:
     """أزرار إدارة المؤلفين"""
     builder = InlineKeyboardBuilder()
-
-    builder.add(InlineKeyboardButton(
-        text="📋 عرض جميع المؤلفين",
-        callback_data="admin_auth_list"
-    ))
-    builder.add(InlineKeyboardButton(
-        text="➕ إضافة مؤلف جديد",
-        callback_data="admin_auth_add"
-    ))
+    builder = InlineKeyboardBuilder()
+    builder.add(InlineKeyboardButton(text="📋 عرض جميع المؤلفين", callback_data="admin_auth_list"))
+    builder.add(InlineKeyboardButton(text="➕ إضافة مؤلف جديد", callback_data="admin_add_author"))  # تغيير من admin_auth_add
     builder.add(InlineKeyboardButton(
         text="✏️ تعديل مؤلف",
         callback_data="admin_auth_edit"
@@ -348,15 +335,8 @@ def get_admin_authors_keyboard() -> InlineKeyboardMarkup:
 def get_admin_channels_keyboard() -> InlineKeyboardMarkup:
     """أزرار إدارة القنوات"""
     builder = InlineKeyboardBuilder()
-
-    builder.add(InlineKeyboardButton(
-        text="📋 عرض القنوات",
-        callback_data="admin_ch_list"
-    ))
-    builder.add(InlineKeyboardButton(
-        text="➕ إضافة قناة",
-        callback_data="admin_ch_add"
-    ))
+    builder.add(InlineKeyboardButton(text="📋 عرض القنوات", callback_data="admin_ch_list"))
+    builder.add(InlineKeyboardButton(text="➕ إضافة قناة", callback_data="admin_add_channel"))  # تغيير من admin_ch_add
     builder.add(InlineKeyboardButton(
         text="🗑️ حذف قناة",
         callback_data="admin_ch_delete"
