@@ -218,12 +218,12 @@ class BookService:
         return query.scalar()
         
     def get_books_by_category_and_author(self, category_id: int, author_id: int) -> List[Book]:
-    """جلب كتب قسم معين لمؤلف معين"""
-    return self.db.query(Book).filter(
-        Book.category_id == category_id,
-        Book.author_id == author_id,
-        Book.status == 'active'
-    ).all()
+        """جلب كتب قسم معين لمؤلف معين"""
+        return self.db.query(Book).filter(
+            Book.category_id == category_id,
+            Book.author_id == author_id,
+            Book.status == 'active'
+        ).all()
     
     def get_statistics(self) -> dict:
         """إحصائيات الكتب"""
