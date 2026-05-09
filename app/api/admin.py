@@ -1,314 +1,180 @@
-from fastapi import APIRouter 
-router = APIRouter() 
 """
-Admin Service - خدمة لوحة تحكم الإدارة
+Admin API - واجهة الإدارة
 """
-from typing import List, Optional, Dict
-from datetime import datetime, timedelta
+from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func
-from app.models.admin import AdminUser, AdminLog, AdminRole
-from app.models.user import User, UserStatus
-from app.models.book import Book, BookStatus
-from app.models.points import UserPoints
-from app.models.book import BookCategory
-from app.models.author import Author
+
+from app.database import get_db
+from app.admin.admin_service import AdminService
+from app.models.admin import AdminRole
+from app.models.book import BookStatus
+from app.models.user import UserStatus
+
+router = APIRouter(prefix="/admin", tags=["الإدارة"])
 
 
-class AdminService:
-    """خدمة لوحة تحكم الإدارة"""
+@router.get("/stats")
+def get_admin_stats(db: Session = Depends(get_db)):
+    """إحصائيات عامة للوحة الإدارة"""
+    service = AdminService(db)
+    return service.get_statistics()
 
-    def __init__(self, db: Session):
-        self.db = db
 
-    # ==========================================
-    # إدارة الكتب
-    # ==========================================
+@router.get("/books/pending")
+def get_pending_books(limit: int = Query(default=50, ge=1, le=100), db: Session = Depends(get_db)):
+    """الكتب بانتظار المراجعة"""
+    service = AdminService(db)
+    books = service.get_pending_books(limit=limit)
+    return {"books": books, "count": len(books)}
 
-    def get_pending_books(self, limit: int = 50) -> List[Book]:
-        """الحصول على الكتب قيد المراجعة"""
-        return self.db.query(Book).filter(
-            Book.status == BookStatus.PENDING
-        ).order_by(Book.created_at.desc()).limit(limit).all()
 
-    def approve_book(self, book_id: int) -> Optional[Book]:
-        """الموافقة على كتاب"""
-        book = self.db.query(Book).filter(Book.id == book_id).first()
-        if not book:
-            return None
+@router.get("/books")
+def get_books(
+    status: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """عرض جميع الكتب أو حسب الحالة"""
+    service = AdminService(db)
 
-        book.status = BookStatus.ACTIVE
-        self.db.commit()
-        self.db.refresh(book)
-        return book
+    status_enum = None
+    if status:
+        try:
+            status_enum = BookStatus[status.upper()]
+        except KeyError:
+            raise HTTPException(status_code=400, detail="حالة الكتاب غير صحيحة")
 
-    def reject_book(self, book_id: int, reason: str = None) -> Optional[Book]:
-        """رفض كتاب"""
-        book = self.db.query(Book).filter(Book.id == book_id).first()
-        if not book:
-            return None
+    books = service.get_all_books(status=status_enum)
+    return {"books": books, "count": len(books)}
 
-        book.status = BookStatus.REJECTED
-        book.rejection_reason = reason
-        self.db.commit()
-        self.db.refresh(book)
-        return book
 
-    def delete_book(self, book_id: int) -> bool:
-        """حذف كتاب"""
-        book = self.db.query(Book).filter(Book.id == book_id).first()
-        if not book:
-            return False
+@router.post("/books/{book_id}/approve")
+def approve_book(book_id: int, db: Session = Depends(get_db)):
+    """الموافقة على كتاب"""
+    service = AdminService(db)
+    book = service.approve_book(book_id)
+    if not book:
+        raise HTTPException(status_code=404, detail="الكتاب غير موجود")
+    return {"message": "تمت الموافقة على الكتاب", "book": book}
 
-        self.db.delete(book)
-        self.db.commit()
-        return True
 
-    def get_all_books(self, status: BookStatus = None) -> List[Book]:
-        """الحصول على جميع الكتب"""
-        query = self.db.query(Book)
-        if status:
-            query = query.filter(Book.status == status)
-        return query.order_by(Book.created_at.desc()).all()
+@router.post("/books/{book_id}/reject")
+def reject_book(book_id: int, reason: Optional[str] = None, db: Session = Depends(get_db)):
+    """رفض كتاب"""
+    service = AdminService(db)
+    book = service.reject_book(book_id, reason)
+    if not book:
+        raise HTTPException(status_code=404, detail="الكتاب غير موجود")
+    return {"message": "تم رفض الكتاب", "book": book}
 
-    # ==========================================
-    # إدارة المستخدمين
-    # ==========================================
 
-    def get_all_users(self, status: UserStatus = None) -> List[User]:
-        """الحصول على جميع المستخدمين"""
-        query = self.db.query(User)
-        if status:
-            query = query.filter(User.status == status)
-        return query.order_by(User.created_at.desc()).all()
+@router.delete("/books/{book_id}")
+def delete_book(book_id: int, db: Session = Depends(get_db)):
+    """حذف كتاب"""
+    service = AdminService(db)
+    success = service.delete_book(book_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="الكتاب غير موجود")
+    return {"message": "تم حذف الكتاب بنجاح"}
 
-    def ban_user(self, telegram_id: int) -> Optional[User]:
-        """حظر مستخدم"""
-        user = self.db.query(User).filter(User.telegram_id == telegram_id).first()
-        if not user:
-            return None
 
-        user.status = UserStatus.BANNED
-        self.db.commit()
-        self.db.refresh(user)
-        return user
+@router.get("/users")
+def get_users(
+    status: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """عرض المستخدمين"""
+    service = AdminService(db)
 
-    def unban_user(self, telegram_id: int) -> Optional[User]:
-        """إلغاء حظر مستخدم"""
-        user = self.db.query(User).filter(User.telegram_id == telegram_id).first()
-        if not user:
-            return None
+    status_enum = None
+    if status:
+        try:
+            status_enum = UserStatus[status.upper()]
+        except KeyError:
+            raise HTTPException(status_code=400, detail="حالة المستخدم غير صحيحة")
 
-        user.status = UserStatus.ACTIVE
-        self.db.commit()
-        self.db.refresh(user)
-        return user
+    users = service.get_all_users(status=status_enum)
+    return {"users": users, "count": len(users)}
 
-    def search_users(self, query: str) -> List[User]:
-        """البحث عن مستخدمين"""
-        return self.db.query(User).filter(
-            (User.username.ilike(f"%{query}%")) |
-            (User.first_name.ilike(f"%{query}%")) |
-            (User.telegram_id == query)
-        ).limit(50).all()
 
-    # ==========================================
-    # الإحصائيات
-    # ==========================================
+@router.post("/users/{telegram_id}/ban")
+def ban_user(telegram_id: int, db: Session = Depends(get_db)):
+    """حظر مستخدم"""
+    service = AdminService(db)
+    user = service.ban_user(telegram_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="المستخدم غير موجود")
+    return {"message": "تم حظر المستخدم", "user": user}
 
-    def get_statistics(self) -> Dict:
-        """الحصول على إحصائيات شاملة"""
-        # إحصائيات الكتب
-        total_books = self.db.query(func.count(Book.id)).scalar()
-        active_books = self.db.query(func.count(Book.id)).filter(
-            Book.status == BookStatus.ACTIVE
-        ).scalar()
-        pending_books = self.db.query(func.count(Book.id)).filter(
-            Book.status == BookStatus.PENDING
-        ).scalar()
-        total_downloads = self.db.query(func.sum(Book.download_count)).scalar() or 0
 
-        # إحصائيات المستخدمين
-        total_users = self.db.query(func.count(User.id)).scalar()
-        active_users = self.db.query(func.count(User.id)).filter(
-            User.status == UserStatus.ACTIVE
-        ).scalar()
-        banned_users = self.db.query(func.count(User.id)).filter(
-            User.status == UserStatus.BANNED
-        ).scalar()
+@router.post("/users/{telegram_id}/unban")
+def unban_user(telegram_id: int, db: Session = Depends(get_db)):
+    """فك حظر مستخدم"""
+    service = AdminService(db)
+    user = service.unban_user(telegram_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="المستخدم غير موجود")
+    return {"message": "تم إلغاء حظر المستخدم", "user": user}
 
-        # إحصائيات النقاط
-        total_points = self.db.query(func.sum(UserPoints.current_balance)).scalar() or 0
 
-        # إحصائيات المؤلفين والقسام
-        total_authors = self.db.query(func.count(Author.id)).scalar()
-        total_categories = self.db.query(func.count(BookCategory.id)).scalar()
+@router.get("/logs")
+def get_logs(admin_id: Optional[int] = None, limit: int = Query(default=100, ge=1, le=500), db: Session = Depends(get_db)):
+    """سجلات الإدارة"""
+    service = AdminService(db)
+    logs = service.get_logs(admin_id=admin_id, limit=limit)
+    return {"logs": logs, "count": len(logs)}
 
-        #增长率
-        today = datetime.utcnow().date()
-        week_ago = today - timedelta(days=7)
-        month_ago = today - timedelta(days=30)
 
-        new_users_today = self.db.query(func.count(User.id)).filter(
-            User.created_at >= today
-        ).scalar()
+@router.get("/top-books")
+def get_top_books(limit: int = Query(default=10, ge=1, le=50), db: Session = Depends(get_db)):
+    """أكثر الكتب تحميلاً"""
+    service = AdminService(db)
+    books = service.get_top_books(limit=limit)
+    return {"books": books, "count": len(books)}
 
-        new_users_week = self.db.query(func.count(User.id)).filter(
-            User.created_at >= week_ago
-        ).scalar()
 
-        new_users_month = self.db.query(func.count(User.id)).filter(
-            User.created_at >= month_ago
-        ).scalar()
+@router.get("/top-users")
+def get_top_users(limit: int = Query(default=10, ge=1, le=50), db: Session = Depends(get_db)):
+    """أكثر المستخدمين نقاطاً"""
+    service = AdminService(db)
+    users = service.get_top_users(limit=limit)
+    return {"users": users, "count": len(users)}
 
-        return {
-            "books": {
-                "total": total_books,
-                "active": active_books,
-                "pending": pending_books,
-                "total_downloads": total_downloads
-            },
-            "users": {
-                "total": total_users,
-                "active": active_users,
-                "banned": banned_users,
-                "new_today": new_users_today,
-                "new_week": new_users_week,
-                "new_month": new_users_month
-            },
-            "points": {
-                "total": total_points
-            },
-            "content": {
-                "authors": total_authors,
-                "categories": total_categories
-            }
-        }
 
-    def get_top_books(self, limit: int = 10) -> List[Book]:
-        """الحصول على أكثر الكتب تحميلاً"""
-        return self.db.query(Book).filter(
-            Book.status == BookStatus.ACTIVE
-        ).order_by(Book.download_count.desc()).limit(limit).all()
+@router.get("/admins")
+def get_admins(db: Session = Depends(get_db)):
+    """جميع المشرفين النشطين"""
+    service = AdminService(db)
+    return {"admins": service.get_all_admins(), "count": len(service.get_all_admins())}
 
-    def get_top_users(self, limit: int = 10) -> List[UserPoints]:
-        """الحصول على أكثر المستخدمين نقاطاً"""
-        return self.db.query(UserPoints).order_by(
-            UserPoints.current_balance.desc()
-        ).limit(limit).all()
 
-    # ==========================================
-    # سجلات المشرفين
-    # ==========================================
+@router.post("/admins")
+def add_admin(user_id: int, role: AdminRole = AdminRole.MODERATOR, db: Session = Depends(get_db)):
+    """إضافة مشرف جديد"""
+    service = AdminService(db)
+    admin = service.add_admin(user_id=user_id, role=role)
+    return {"message": "تمت إضافة المشرف", "admin": admin}
 
-    def add_log(
-        self,
-        admin_id: int,
-        action: str,
-        entity_type: str = None,
-        entity_id: int = None,
-        details: str = None
-    ) -> AdminLog:
-        """إضافة سجل للمشرف"""
-        log = AdminLog(
-            admin_id=admin_id,
-            action=action,
-            entity_type=entity_type,
-            entity_id=entity_id,
-            details=details
-        )
-        self.db.add(log)
-        self.db.commit()
-        self.db.refresh(log)
-        return log
 
-    def get_logs(self, admin_id: int = None, limit: int = 100) -> List[AdminLog]:
-        """الحصول على سجلات المشرفين"""
-        query = self.db.query(AdminLog)
-        if admin_id:
-            query = query.filter(AdminLog.admin_id == admin_id)
-        return query.order_by(AdminLog.created_at.desc()).limit(limit).all()
+@router.delete("/admins/{user_id}")
+def remove_admin(user_id: int, db: Session = Depends(get_db)):
+    """إزالة صلاحية المشرف"""
+    service = AdminService(db)
+    success = service.remove_admin(user_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="المشرف غير موجود")
+    return {"message": "تمت إزالة المشرف بنجاح"}
 
-    # ==========================================
-    # إدارة المشرفين
-    # ==========================================
 
-    def add_admin(self, user_id: int, role: AdminRole = AdminRole.MODERATOR) -> AdminUser:
-        """إضافة مشرف"""
-        admin = AdminUser(
-            user_id=user_id,
-            role=role,
-            is_active=True
-        )
-        self.db.add(admin)
-        self.db.commit()
-        self.db.refresh(admin)
-        return admin
+@router.get("/export/books")
+def export_books_csv(db: Session = Depends(get_db)):
+    """تصدير بيانات الكتب كقائمة CSV جاهزة"""
+    service = AdminService(db)
+    return {"rows": service.export_books_csv()}
 
-    def remove_admin(self, user_id: int) -> bool:
-        """إزالة مشرف"""
-        admin = self.db.query(AdminUser).filter(
-            AdminUser.user_id == user_id
-        ).first()
-        if not admin:
-            return False
 
-        self.db.delete(admin)
-        self.db.commit()
-        return True
-
-    def get_admin(self, user_id: int) -> Optional[AdminUser]:
-        """الحصول على مشرف"""
-        return self.db.query(AdminUser).filter(
-            AdminUser.user_id == user_id
-        ).first()
-
-    def get_all_admins(self) -> List[AdminUser]:
-        """الحصول على جميع المشرفين"""
-        return self.db.query(AdminUser).filter(
-            AdminUser.is_active == True
-        ).all()
-
-    # ==========================================
-    # تصدير البيانات
-    # ==========================================
-
-    def export_books_csv(self) -> List[List]:
-        """تصدير الكتب كـ CSV"""
-        books = self.get_all_books(status=BookStatus.ACTIVE)
-
-        data = []
-        data.append(["ID", "العنوان", "المؤلف", "القسم", "التحميلات", "التقييم", "تاريخ الإنشاء"])
-
-        for book in books:
-            data.append([
-                book.id,
-                book.title,
-                book.author.name if book.author else "",
-                book.category.name if book.category else "",
-                book.download_count,
-                round(book.average_rating, 2),
-                book.created_at.strftime("%Y-%m-%d")
-            ])
-
-        return data
-
-    def export_users_csv(self) -> List[List]:
-        """تصدير المستخدمين كـ CSV"""
-        users = self.get_all_users()
-
-        data = []
-        data.append(["ID", "معرف تيليجرام", "الاسم", "الحالة", "التحميلات", "النقاط", "تاريخ الإنشاء"])
-
-        for user in users:
-            data.append([
-                user.id,
-                user.telegram_id,
-                f"{user.first_name or ''} {user.last_name or ''}".strip(),
-                user.status.value,
-                user.total_downloads,
-                user.points.current_balance if user.points else 0,
-                user.created_at.strftime("%Y-%m-%d")
-            ])
-
-        return data
+@router.get("/export/users")
+def export_users_csv(db: Session = Depends(get_db)):
+    """تصدير بيانات المستخدمين كقائمة CSV جاهزة"""
+    service = AdminService(db)
+    return {"rows": service.export_users_csv()}
