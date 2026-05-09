@@ -1,21 +1,17 @@
 """
-Channel Service - خدمة القنوات (الاشتراك الإجباري وإعدادات النشر)
+Channel Service - خدمة القنوات
 """
-from typing import List, Tuple, Optional
 from aiogram import Bot
+from typing import List, Optional, Tuple
 from sqlalchemy.orm import Session
-from app.models.channel_setting import Channel
+from app.models.channel_setting import ForceJoinChannel, ChannelSetting
 
 
 class ChannelService:
-    """خدمة إدارة القنوات المتكاملة"""
+    """خدمة إدارة القنوات"""
 
     def __init__(self, db: Session):
         self.db = db
-
-    # ==========================================
-    # إدارة القنوات الأساسية
-    # ==========================================
 
     def add_channel(
         self,
@@ -23,22 +19,11 @@ class ChannelService:
         channel_name: Optional[str] = None,
         channel_link: Optional[str] = None,
         is_required: bool = True
-    ) -> Channel:
-        """إضافة قناة جديدة (أو تحديثها إذا وجدت)"""
+    ) -> ForceJoinChannel:
         existing = self.get_channel(channel_id)
         if existing:
-            # تحديث البيانات الموجودة
-            if channel_name is not None:
-                existing.channel_name = channel_name
-            if channel_link is not None:
-                existing.channel_link = channel_link
-            if is_required is not None:
-                existing.is_required = is_required
-            self.db.commit()
-            self.db.refresh(existing)
             return existing
-
-        channel = Channel(
+        channel = ForceJoinChannel(
             channel_id=channel_id,
             channel_name=channel_name,
             channel_link=channel_link,
@@ -50,7 +35,6 @@ class ChannelService:
         return channel
 
     def remove_channel(self, channel_id: str) -> bool:
-        """حذف قناة"""
         channel = self.get_channel(channel_id)
         if not channel:
             return False
@@ -58,16 +42,13 @@ class ChannelService:
         self.db.commit()
         return True
 
-    def get_channel(self, channel_id: str) -> Optional[Channel]:
-        """الحصول على قناة بالمعرف (ID أو @username)"""
-        return self.db.query(Channel).filter(Channel.channel_id == channel_id).first()
+    def get_channel(self, channel_id: str) -> Optional[ForceJoinChannel]:
+        return self.db.query(ForceJoinChannel).filter(
+            ForceJoinChannel.channel_id == channel_id
+        ).first()
 
-    def get_all_channels(self, required_only: bool = False) -> List[Channel]:
-        """الحصول على جميع القنوات (أو فقط المطلوبة للإجبار)"""
-        query = self.db.query(Channel)
-        if required_only:
-            query = query.filter(Channel.is_required == True)
-        return query.all()
+    def get_all_channels(self) -> List[ForceJoinChannel]:
+        return self.db.query(ForceJoinChannel).all()
 
     def update_channel(
         self,
@@ -75,8 +56,7 @@ class ChannelService:
         channel_name: Optional[str] = None,
         channel_link: Optional[str] = None,
         is_required: Optional[bool] = None
-    ) -> Optional[Channel]:
-        """تحديث بيانات قناة"""
+    ) -> Optional[ForceJoinChannel]:
         channel = self.get_channel(channel_id)
         if not channel:
             return None
@@ -90,70 +70,68 @@ class ChannelService:
         self.db.refresh(channel)
         return channel
 
-    # ==========================================
-    # التحقق من الاشتراك
-    # ==========================================
-
-    async def check_subscription(self, bot: Bot, user_id: int, channel_id: str) -> bool:
-        """فحص اشتراك مستخدم واحد في قناة واحدة"""
+    async def check_subscription(self, bot, user_id: int, channel_id: str) -> bool:
         try:
-            member = await bot.get_chat_member(chat_id=channel_id, user_id=user_id)
-            return member.status in ['member', 'administrator', 'creator']
+            chat_member = await bot.get_chat_member(chat_id=channel_id, user_id=user_id)
+            return chat_member.status in ['member', 'administrator', 'creator']
         except Exception:
             return False
 
-    async def check_all_subscriptions(self, bot: Bot, user_id: int) -> Tuple[bool, List[Channel]]:
-        """التحقق من اشتراك المستخدم في جميع القنوات المطلوبة (is_required=True)"""
-        channels = self.get_all_channels(required_only=True)
+    async def check_all_subscriptions(self, bot: Bot, user_id: int) -> Tuple[bool, List[ForceJoinChannel]]:
+        channels = self.get_all_channels()
         if not channels:
             return True, []
-
         not_subscribed = []
         for ch in channels:
+            if not ch.is_required:
+                continue
             try:
                 member = await bot.get_chat_member(chat_id=ch.channel_id, user_id=user_id)
                 if member.status in ['left', 'kicked']:
                     not_subscribed.append(ch)
             except Exception:
-                # في حالة خطأ (قناة غير موجودة أو البوت ليس مشرفاً) نعتبره غير مشترك
                 not_subscribed.append(ch)
         return len(not_subscribed) == 0, not_subscribed
 
-    # ==========================================
-    # إعدادات النشر التلقائي
-    # ==========================================
-
+    # ========== إعدادات النشر ==========
     def setup_auto_post(
         self,
         channel_id: str,
+        channel_name: Optional[str] = None,
         auto_post: bool = False,
         post_template: Optional[str] = None
-    ) -> Optional[Channel]:
-        """تفعيل/تعطيل النشر التلقائي وتعيين القالب"""
-        channel = self.get_channel(channel_id)
-        if not channel:
-            return None
-        channel.auto_post = auto_post
-        if post_template is not None:
-            channel.post_template = post_template
+    ) -> ChannelSetting:
+        setting = self.get_setting(channel_id)
+        if setting:
+            setting.auto_post = auto_post
+            setting.post_template = post_template
+            self.db.commit()
+            self.db.refresh(setting)
+            return setting
+        setting = ChannelSetting(
+            channel_id=channel_id,
+            channel_name=channel_name,
+            auto_post=auto_post,
+            post_template=post_template
+        )
+        self.db.add(setting)
         self.db.commit()
-        self.db.refresh(channel)
-        return channel
+        self.db.refresh(setting)
+        return setting
 
-    def get_setting(self, channel_id: str) -> Optional[Channel]:
-        """الحصول على إعدادات قناة (نفس get_channel)"""
-        return self.get_channel(channel_id)
+    def get_setting(self, channel_id: str) -> Optional[ChannelSetting]:
+        return self.db.query(ChannelSetting).filter(
+            ChannelSetting.channel_id == channel_id
+        ).first()
 
-    def get_all_settings(self) -> List[Channel]:
-        """الحصول على جميع القنوات (مع إعداداتها)"""
-        return self.get_all_channels()
+    def get_all_settings(self) -> List[ChannelSetting]:
+        return self.db.query(ChannelSetting).all()
 
-    def toggle_auto_post(self, channel_id: str) -> Optional[Channel]:
-        """تبديل حالة النشر التلقائي لقناة"""
-        channel = self.get_channel(channel_id)
-        if not channel:
+    def toggle_auto_post(self, channel_id: str) -> Optional[ChannelSetting]:
+        setting = self.get_setting(channel_id)
+        if not setting:
             return None
-        channel.auto_post = not channel.auto_post
+        setting.auto_post = not setting.auto_post
         self.db.commit()
-        self.db.refresh(channel)
-        return channel
+        self.db.refresh(setting)
+        return setting
