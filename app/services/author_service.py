@@ -112,7 +112,7 @@ class AuthorService:
     def get_popular(self, limit: int = 10) -> List[Author]:
         """الحصول على أكثر المؤلفين شهرة"""
         from sqlalchemy import func
-        from app.models.book import Book
+        from app.models.book import Book, BookStatus
 
         return self.db.query(
             Author,
@@ -123,11 +123,11 @@ class AuthorService:
         
     def get_authors_by_category(self, category_id: int):
         """جلب المؤلفين الذين لديهم كتب في قسم معين"""
-        from app.models.book import Book
+        from app.models.book import Book, BookStatus
         authors = self.db.query(Author).join(
             Book, Author.id == Book.author_id
         ).filter(
             Book.category_id == category_id,
-            Book.status == 'active'
+            Book.status == BookStatus.ACTIVE
         ).distinct().all()
         return authors
