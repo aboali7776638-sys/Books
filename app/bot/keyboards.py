@@ -71,7 +71,17 @@ def get_category_keyboard(categories: List[BookCategory] = None) -> InlineKeyboa
     builder.adjust(2)
     return builder.as_markup()
 
-
+def get_category_keyboard(categories: List[BookCategory] = None) -> InlineKeyboardMarkup:
+    """أزرار الأقسام للتصفح"""
+    builder = InlineKeyboardBuilder()
+    # ... الكود الموجود يعرض الأقسام فقط ...
+    return builder.as_markup()
+def get_back_keyboard() -> ReplyKeyboardMarkup:
+    """زر رجوع للقائمة الرئيسية"""
+    return ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text="🔙 رجوع")]],
+        resize_keyboard=True
+    )
 def get_book_keyboard(book_id: int, is_favorite: bool = False) -> InlineKeyboardMarkup:
     """أزرار الكتاب"""
     builder = InlineKeyboardBuilder()
