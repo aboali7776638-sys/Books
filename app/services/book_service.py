@@ -222,7 +222,7 @@ class BookService:
         return self.db.query(Book).filter(
             Book.category_id == category_id,
             Book.author_id == author_id,
-            Book.status == 'active'
+            Book.status == BookStatus.ACTIVE
         ).all()
     
     def get_statistics(self) -> dict:
